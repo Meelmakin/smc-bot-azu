@@ -20,7 +20,7 @@ PAIRS = {
     "XAUUSD": "GC=F",
     "US30": "YM=F",
     "BTCUSD": "BTC-USD",
-    "ETHUSD": "ETH-USD","
+    "ETHUSD": "ETH-USD",
     AUDUSD": "AUDUSD=X",
     "USDCAD": "CAD=X",
     "NZDUSD": "NZDUSD=X",
