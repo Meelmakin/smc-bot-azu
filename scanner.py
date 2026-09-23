@@ -44,7 +44,7 @@ PAIRS = {
     "SOLUSD": "SOL-USD",
 }
 
-RR = 2.0             # take-profit as multiple of risk
+RR = 3.0             # take-profit as multiple of risk
 LOOKBACK = 24        # 15M candles to look back for the break (~6 hours)
 BREAK_BUF = 0.10     # close must clear level by this many ATR
 RETEST_TOL = 0.25    # retest wick must come within this many ATR of level
