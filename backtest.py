@@ -70,7 +70,8 @@ def run_variant(name, m15, h1, a_arr, n1_arr, above, cache, cfg):
         sides = ("long", "short")
         if cfg["trend"]:
             sides = ("long",) if above[n1 - 1] else ("short",)
-        sig = S.find_signal(m15.iloc[max(0, i - WINDOW + 1): i + 1], levels, sides, a)
+        sig = S.find_signal(m15.iloc[max(0, i - WINDOW + 1): i + 1], levels, sides, a,
+                            bool(above[n1 - 1]))
         if not sig:
             continue
         side, entry, sl = sig["side"], float(sig["entry"]), float(sig["sl"])
@@ -84,7 +85,8 @@ def run_variant(name, m15, h1, a_arr, n1_arr, above, cache, cfg):
             if rr == LOCK_RR:
                 lock_until = j
         if res:
-            trades.append({"t": m15.index[i], "pair": name, "R": res})
+            trades.append({"t": m15.index[i], "pair": name, "R": res,
+                           "score": sig["score"], "grade": sig["grade"]})
     return trades
 
 
@@ -156,6 +158,19 @@ def main():
             s = stats(rs)
             if s:
                 lines.append(f"{name}: {s['n']} trades, win {s['wr']:.0f}%, {s['tot']:+.1f}R")
+    lines += ["", "QUALITY GRADE CHECK (3R)."]
+    lines += ["Does a higher grade really do better?"]
+    for v in ("B Big levels only", "D Big + session + 1H trend"):
+        tr = results.get(v, [])
+        lines.append(v + ":")
+        for g in ("A", "B", "C"):
+            rs = [t["R"][LOCK_RR] for t in tr if t["grade"] == g]
+            s = stats(rs)
+            if s:
+                lines.append(f"  {g}: {s['n']} trades, win {s['wr']:.0f}%, "
+                             f"{s['exp']:+.2f}R/trade (±{s['noise']:.2f})")
+            else:
+                lines.append(f"  {g}: no trades")
     if errors:
         lines += ["", "Errors:"] + errors[:6]
     lines += ["", "(±) = rough noise margin. If R/trade is inside it, the result",
@@ -167,3 +182,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
