@@ -1,0 +1,30 @@
+name: Structure Engulf Backtest
+
+# Adds a "Run workflow" button under the Actions tab.
+on:
+  workflow_dispatch:
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install yfinance pandas numpy
+
+      - name: Run backtest
+        run: python structure_engulf_backtest.py
+
+      - name: Upload trade log
+        uses: actions/upload-artifact@v4
+        with:
+          name: structure-engulf-trades
+          path: structure_engulf_trades.csv
+          
