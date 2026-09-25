@@ -1,7 +1,8 @@
 """Key level break & retest scanner -> Telegram alerts (v2, tighter rules).
 
 Levels (1H data): previous day H/L and previous week H/L (swing levels optional).
-Filters: London/NY session only, and trade only with the 1H trend (EMA 50).
+Filters: London/NY session is now tagged (not hard-blocked), and trade only
+with the 1H trend (EMA 50) if TREND_ON.
 Signal (15M data): close breaks a level -> price leaves -> returns to the level
 -> rejection candle closes back in break direction on the LAST closed candle.
 Data: Yahoo Finance (works from GitHub Actions; Binance is blocked there).
@@ -54,8 +55,7 @@ SL_BUF = 0.10        # stop buffer in ATR
 STALE_MIN = 20       # ignore data if last closed candle is older than this
 
 USE_SWING = False    # False = only previous day/week high/low
-SESSION_ON = True    # only alert during London + New York hours
-SESSION = (7, 20)    # UTC hours: start (inclusive), end (exclusive)
+SESSION = (7, 20)    # UTC hours: start (inclusive), end (exclusive) -- used for tagging only
 TREND_ON = True      # only trade with the 1H trend
 EMA_LEN = 50         # 1H EMA length for the trend filter
 MIN_SCORE = 0        # only alert if quality score >= this (0 = send all; 5 = A only)
@@ -246,8 +246,8 @@ def scan_pair(name, ticker):
     last_end = m15.index[-1] + timedelta(minutes=15)
     if now - last_end > timedelta(minutes=STALE_MIN):
         return None, "market closed/stale"
-    if SESSION_ON and not in_session(m15.index[-1].hour):
-        return None, "outside session"
+
+    session_tag = "in-session" if in_session(m15.index[-1].hour) else "off-session"
     a = atr(m15).iloc[-1]
     levels = key_levels(h1, a)
     ema = h1["close"].ewm(span=EMA_LEN, adjust=False).mean()
@@ -256,8 +256,10 @@ def scan_pair(name, ticker):
     if TREND_ON:
         sides = ("long",) if trend_up else ("short",)
     trend = "up" if trend_up else "down"
-    return (find_signal(m15, levels, sides, a, trend_up),
-            f"{len(levels)} levels, 1H trend {trend}")
+    sig = find_signal(m15, levels, sides, a, trend_up)
+    if sig:
+        sig["session"] = session_tag
+    return sig, f"{len(levels)} levels, 1H trend {trend}, {session_tag}"
 
 
 def main():
@@ -282,6 +284,7 @@ def main():
             "BTCUSD", "ETHUSD", "SOLUSD") else 5
         send(
             f"{s['side']} {name}  (break & retest of {s['label']})\n"
+            f"Session: {s.get('session', 'n/a')}\n"
             f"Quality: {s['grade']} ({s['score']}/6){'  ⭐' if s['grade'] == 'A' else ''}\n"
             f"Why: {', '.join(s['why']) or 'basic setup only'}\n"
             f"Level: {s['level']:.{dec}f}\n"
@@ -302,4 +305,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-                
+    
