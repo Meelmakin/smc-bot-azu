@@ -34,13 +34,39 @@ from dataclasses import dataclass, field
 # ---------------------------------------------------------------------------
 
 PAIRS = {
-    "US30": "^DJI",
-    "XAUUSD": "GC=F",
+    # Forex majors
     "EURUSD": "EURUSD=X",
     "GBPUSD": "GBPUSD=X",
     "USDJPY": "USDJPY=X",
+    "USDCHF": "USDCHF=X",
+    "USDCAD": "USDCAD=X",
+    "AUDUSD": "AUDUSD=X",
+    "NZDUSD": "NZDUSD=X",
+    # Forex crosses
+    "EURJPY": "EURJPY=X",
+    "GBPJPY": "GBPJPY=X",
+    "EURGBP": "EURGBP=X",
+    "AUDJPY": "AUDJPY=X",
+    "EURAUD": "EURAUD=X",
+    "EURCHF": "EURCHF=X",
+    "CADJPY": "CADJPY=X",
+    # Metals & energy
+    "XAUUSD": "GC=F",
+    "XAGUSD": "SI=F",
+    "USOIL": "CL=F",
+    # Indices
+    "US30": "^DJI",
+    "US100": "^NDX",
+    "US500": "^GSPC",
+    "UK100": "^FTSE",
+    "GER40": "^GDAXI",
+    "JP225": "^N225",
+    # Crypto
     "BTCUSDT": "BTC-USD",
     "ETHUSDT": "ETH-USD",
+    "SOLUSDT": "SOL-USD",
+    "XRPUSDT": "XRP-USD",
+    "BNBUSDT": "BNB-USD",
 }
 
 R_MULTIPLES = [2, 3]          # test both targets, like your other backtests
