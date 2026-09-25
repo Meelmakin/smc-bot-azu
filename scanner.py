@@ -59,6 +59,8 @@ SESSION = (7, 20)    # UTC hours: start (inclusive), end (exclusive) -- used for
 TREND_ON = True      # only trade with the 1H trend
 EMA_LEN = 50         # 1H EMA length for the trend filter
 MIN_SCORE = 0        # only alert if quality score >= this (0 = send all; 5 = A only)
+MAX_DRIFT_R = 0.35    # skip the alert if live price has already moved this many
+                      # multiples of risk (R) away from the computed entry
 
 
 def env(*names):
@@ -208,7 +210,8 @@ def find_signal(m15, levels, sides=("long", "short"), a=None, trend_up=None):
                 if h[between].max() < price + MIN_LEAVE * a:
                     continue
                 sl = min(l[last], price) - SL_BUF * a
-                entry = c[last]
+                entry = price  # limit order resting at the level, not the
+                                # rejection-candle close (better fill, tighter risk)
                 risk = entry - sl
                 if risk > 0:
                     tp = entry + RR * risk
@@ -222,7 +225,7 @@ def find_signal(m15, levels, sides=("long", "short"), a=None, trend_up=None):
                 if l[between].min() > price - MIN_LEAVE * a:
                     continue
                 sl = max(h[last], price) + SL_BUF * a
-                entry = c[last]
+                entry = price  # limit order resting at the level
                 risk = sl - entry
                 if risk > 0:
                     tp = entry - RR * risk
@@ -230,6 +233,27 @@ def find_signal(m15, levels, sides=("long", "short"), a=None, trend_up=None):
                                           a, o, h, l, c, last, b, hour, trend_up)
                     return dict(side="SELL", label=label, level=price, entry=entry,
                                 sl=sl, tp=tp, score=sc, grade=gr, why=why)
+    return None
+
+
+def live_price(ticker):
+    """Best-effort current price, independent of the 15m candle series used
+    for the signal. Falls back through a couple of methods since yfinance's
+    fast_info isn't always populated for futures tickers on GitHub Actions."""
+    import yfinance as yf
+    t = yf.Ticker(ticker)
+    try:
+        p = t.fast_info.get("last_price")
+        if p:
+            return float(p)
+    except Exception:
+        pass
+    try:
+        df = t.history(interval="1m", period="1d", auto_adjust=False)
+        if len(df):
+            return float(df["close"].iloc[-1])
+    except Exception:
+        pass
     return None
 
 
@@ -279,18 +303,46 @@ def main():
     for name, s in signals:
         if s["score"] < MIN_SCORE:
             continue
+
+        risk = abs(s["entry"] - s["sl"])
+        live = live_price(PAIRS[name])
+        if live is not None and risk > 0:
+            drift_r = abs(live - s["entry"]) / risk
+            if drift_r > MAX_DRIFT_R:
+                print(f"SKIP {name}: price drifted {drift_r:.2f}R from entry "
+                      f"(entry {s['entry']:.5f}, live {live:.5f}) - no longer executable")
+                continue
+        elif live is None:
+            print(f"WARN {name}: could not confirm live price, sending anyway")
+
         dec = 3 if name.endswith("JPY") or name in (
             "XAUUSD", "XAGUSD", "US30", "NAS100", "SPX500", "USOIL",
             "BTCUSD", "ETHUSD", "SOLUSD") else 5
+
+        buy = s["side"] == "BUY"
+        entry_limit = s["entry"]          # order resting at the level
+        entry_market = live if live is not None else entry_limit  # enter now instead
+
+        # SL stays anchored to structure; TP recalculated per entry so each
+        # option still targets the same reward multiple off its own risk.
+        risk_market = abs(entry_market - s["sl"])
+        tp_market = (entry_market + RR * risk_market if buy
+                     else entry_market - RR * risk_market) if risk_market > 0 else s["tp"]
+
+        market_block = (
+            f"OR market now: {entry_market:.{dec}f}  |  "
+            f"SL {s['sl']:.{dec}f}  |  TP {tp_market:.{dec}f}\n"
+            if live is not None and abs(entry_market - entry_limit) > 1e-9 else ""
+        )
+
         send(
             f"{s['side']} {name}  (break & retest of {s['label']})\n"
             f"Session: {s.get('session', 'n/a')}\n"
             f"Quality: {s['grade']} ({s['score']}/6){'  ⭐' if s['grade'] == 'A' else ''}\n"
             f"Why: {', '.join(s['why']) or 'basic setup only'}\n"
-            f"Level: {s['level']:.{dec}f}\n"
-            f"Entry: {s['entry']:.{dec}f}\n"
-            f"SL: {s['sl']:.{dec}f}\n"
-            f"TP: {s['tp']:.{dec}f}  ({RR:.0f}R)"
+            f"Entry (limit @ level): {entry_limit:.{dec}f}  |  "
+            f"SL {s['sl']:.{dec}f}  |  TP {s['tp']:.{dec}f}  ({RR:.0f}R)\n"
+            f"{market_block}"
         )
 
     if errors and len(errors) == len(PAIRS):
@@ -305,4 +357,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-    
+                
