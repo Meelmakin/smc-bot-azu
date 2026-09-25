@@ -209,9 +209,17 @@ def run_trade(entry_candle, direction, zone_low, zone_high, df_5m, entry_time, r
     return None  # ran out of data before resolving
 
 
+def _flatten(df):
+    """yfinance can return MultiIndex columns (ticker, field) even for a
+    single ticker; flatten to plain field names so df["Close"] etc. work."""
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+    return df
+
+
 def backtest_pair(name, ticker):
-    df_1h = yf.download(ticker, period="730d", interval="1h", progress=False)
-    df_5m = yf.download(ticker, period="60d", interval="5m", progress=False)
+    df_1h = _flatten(yf.download(ticker, period="730d", interval="1h", progress=False))
+    df_5m = _flatten(yf.download(ticker, period="60d", interval="5m", progress=False))
     if df_1h.empty or df_5m.empty:
         print(f"[{name}] no data, skipping")
         return []
@@ -265,3 +273,4 @@ if __name__ == "__main__":
         print(f"Backtesting {name} ({ticker})...")
         all_trades.extend(backtest_pair(name, ticker))
     summarize(all_trades)
+  
