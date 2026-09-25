@@ -27,4 +27,3 @@ jobs:
         with:
           name: structure-engulf-trades
           path: structure_engulf_trades.csv
-          
