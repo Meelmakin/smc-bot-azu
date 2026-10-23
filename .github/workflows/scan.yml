@@ -3,9 +3,23 @@ on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print alerts only, send nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scan
+  cancel-in-progress: false
+
 jobs:
   scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -13,8 +27,21 @@ jobs:
           python-version: "3.11"
           cache: pip
       - run: pip install -r requirements.txt
-      - run: python bias_bot.py
+      - name: Restore alert memory
+        uses: actions/cache/restore@v4
+        with:
+          path: state
+          key: bias-state-${{ github.run_id }}
+          restore-keys: bias-state-
+      - run: mkdir -p state && python bias_bot.py
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
           MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run == 'true' && '1' || '0' }}
+      - name: Save alert memory
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: state
+          key: bias-state-${{ github.run_id }}
