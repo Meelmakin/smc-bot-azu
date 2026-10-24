@@ -14,14 +14,19 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Unit tests
         run: python -m unittest test_bias -v
-      - name: Backtest
+      - name: Backtest daily levels and 4H structure
         shell: bash
-        run: python bias_backtest.py 2> warnings.log | tee report.txt
+        run: python bias_backtest.py --tf D1H4 2> warnings.log | tee report.txt
+      - name: Backtest 4H levels and 1H structure
+        shell: bash
+        run: python bias_backtest.py --tf H4H1 --out bias_backtest_trades_1h.csv 2>> warnings.log | tee report_1h.txt
       - name: Show results on the run page
         if: always()
         run: |
-          echo "## Backtest results" >> $GITHUB_STEP_SUMMARY
+          echo "## Daily levels + 4H structure" >> $GITHUB_STEP_SUMMARY
           sed 's/^/    /' report.txt >> $GITHUB_STEP_SUMMARY || true
+          echo "## 4H levels + 1H structure" >> $GITHUB_STEP_SUMMARY
+          sed 's/^/    /' report_1h.txt >> $GITHUB_STEP_SUMMARY || true
           grep -v -e Pandas4Warning -e 'See https' -e 'inplace=True' warnings.log | tail -n 15 || true
       - uses: actions/upload-artifact@v4
         if: always()
@@ -29,4 +34,6 @@ jobs:
           name: bias-backtest
           path: |
             bias_backtest_trades.csv
+            bias_backtest_trades_1h.csv
             report.txt
+            report_1h.txt
