@@ -1,0 +1,32 @@
+name: slk-score
+on:
+  workflow_dispatch:
+jobs:
+  score:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Unit tests
+        run: python -m unittest test_slk -v
+      - name: Score slkradar alerts
+        shell: bash
+        run: python slk_score.py 2> warnings.log | tee slk_report.txt
+      - name: Show results on the run page
+        if: always()
+        run: |
+          echo "## slkradar alert scoring" >> $GITHUB_STEP_SUMMARY
+          sed 's/^/    /' slk_report.txt >> $GITHUB_STEP_SUMMARY || true
+          grep -v -e Pandas4Warning -e 'See https' -e 'inplace=True' warnings.log | tail -n 15 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: slk-score
+          path: |
+            slk_scored.csv
+            slk_report.txt
