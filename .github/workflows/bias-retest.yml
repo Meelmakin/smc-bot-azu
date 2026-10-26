@@ -1,0 +1,46 @@
+name: bias-retest
+on:
+  workflow_dispatch:
+jobs:
+  retest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Unit tests
+        run: python -m unittest test_bias test_retest -v
+      - name: Retest entry, slk style, daily levels and 4H structure
+        shell: bash
+        run: python bias_retest.py --style slk --tf D1H4 --out retest_slk.csv 2> warnings.log | tee retest_slk.txt
+      - name: Retest entry, legacy style, for comparison
+        shell: bash
+        run: python bias_retest.py --style legacy --tf D1H4 --out retest_legacy.csv 2>> warnings.log | tee retest_legacy.txt
+      - name: Retest entry, slk style, 4H levels and 1H structure
+        shell: bash
+        run: python bias_retest.py --style slk --tf H4H1 --out retest_slk_1h.csv 2>> warnings.log | tee retest_slk_1h.txt
+      - name: Show results on the run page
+        if: always()
+        run: |
+          echo "## slk style: daily levels + 4H structure" >> $GITHUB_STEP_SUMMARY
+          sed 's/^/    /' retest_slk.txt >> $GITHUB_STEP_SUMMARY || true
+          echo "## legacy style: daily levels + 4H structure" >> $GITHUB_STEP_SUMMARY
+          sed 's/^/    /' retest_legacy.txt >> $GITHUB_STEP_SUMMARY || true
+          echo "## slk style: 4H levels + 1H structure" >> $GITHUB_STEP_SUMMARY
+          sed 's/^/    /' retest_slk_1h.txt >> $GITHUB_STEP_SUMMARY || true
+          grep -v -e Pandas4Warning -e 'See https' -e 'inplace=True' warnings.log | tail -n 15 || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bias-retest
+          path: |
+            retest_slk.csv
+            retest_legacy.csv
+            retest_slk_1h.csv
+            retest_slk.txt
+            retest_legacy.txt
+            retest_slk_1h.txt
