@@ -4,7 +4,7 @@ on:
 jobs:
   backtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -14,24 +14,24 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Unit tests
         run: python -m unittest test_bias -v
-      - name: Backtest slk style, daily levels and 4H structure
+      - name: Backtest D1 to H4, slk style
         shell: bash
         run: python bias_backtest.py --tf D1H4 --style slk --out bias_trades_slk.csv 2> warnings.log | tee report_slk.txt
-      - name: Backtest legacy style, same data, for comparison
+      - name: Backtest W1 to D1, slk style (targets measured over 30 days)
+        shell: bash
+        run: python bias_backtest.py --tf W1D1 --style slk --maxbars 720 --out bias_trades_w1d1.csv 2>> warnings.log | tee report_w1d1.txt
+      - name: Backtest D1 to H4, legacy style, for comparison
         shell: bash
         run: python bias_backtest.py --tf D1H4 --style legacy --out bias_trades_legacy.csv 2>> warnings.log | tee report_legacy.txt
-      - name: Backtest slk style, 4H levels and 1H structure
-        shell: bash
-        run: python bias_backtest.py --tf H4H1 --style slk --out bias_trades_slk_1h.csv 2>> warnings.log | tee report_slk_1h.txt
       - name: Show results on the run page
         if: always()
         run: |
-          echo "## slk style: daily levels + 4H structure" >> $GITHUB_STEP_SUMMARY
+          echo "## D1 to H4, slk style" >> $GITHUB_STEP_SUMMARY
           sed 's/^/    /' report_slk.txt >> $GITHUB_STEP_SUMMARY || true
-          echo "## legacy style: daily levels + 4H structure" >> $GITHUB_STEP_SUMMARY
+          echo "## W1 to D1, slk style" >> $GITHUB_STEP_SUMMARY
+          sed 's/^/    /' report_w1d1.txt >> $GITHUB_STEP_SUMMARY || true
+          echo "## D1 to H4, legacy style" >> $GITHUB_STEP_SUMMARY
           sed 's/^/    /' report_legacy.txt >> $GITHUB_STEP_SUMMARY || true
-          echo "## slk style: 4H levels + 1H structure" >> $GITHUB_STEP_SUMMARY
-          sed 's/^/    /' report_slk_1h.txt >> $GITHUB_STEP_SUMMARY || true
           grep -v -e Pandas4Warning -e 'See https' -e 'inplace=True' warnings.log | tail -n 15 || true
       - uses: actions/upload-artifact@v4
         if: always()
@@ -39,8 +39,8 @@ jobs:
           name: bias-backtest
           path: |
             bias_trades_slk.csv
+            bias_trades_w1d1.csv
             bias_trades_legacy.csv
-            bias_trades_slk_1h.csv
             report_slk.txt
+            report_w1d1.txt
             report_legacy.txt
-            report_slk_1h.txt
